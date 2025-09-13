@@ -1,4 +1,84 @@
-from utils import db_connect
-engine = db_connect()
+#from utils import db_connect
+#engine = db_connect()
 
 # your code here
+
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import classification_report
+from sklearn.model_selection import RepeatedStratifiedKFold
+from sklearn.model_selection import GridSearchCV
+from sklearn.preprocessing import StandardScaler
+
+"""Estandarizacion (evitando leakage information)"""
+
+def scaler(X_train_, X_test_, nums):
+  X_train = X_train_.copy()
+  X_test = X_test_.copy()
+  scaler = StandardScaler()
+  # Train
+  X_train_scaled = pd.DataFrame(
+             scaler.fit_transform(X_train[nums]),
+             columns=scaler.get_feature_names_out(),
+             index = X_train.index)
+  X_train_scaled = X_train_scaled.join(X_train[list(set(X_train.columns)  - set(nums))])
+  # Test
+  X_test_scaled = pd.DataFrame(
+      scaler.transform(X_test[nums]),
+      columns = scaler.get_feature_names_out(),
+      index = X_test.index)
+  X_test_scaled = X_test_scaled.join(X_test[list(set(X_test.columns)  - set(nums))])
+  X_test_scaled = X_test_scaled[X_train_scaled.columns]
+  return X_train_scaled, X_test_scaled
+
+# Task:
+# Build the GRID and write about the results
+
+df = pd.read_csv("https://raw.githubusercontent.com/4GeeksAcademy/k-nearest-neighbors-project-tutorial/refs/heads/main/winequality-red.csv", sep=';')
+
+df['aceptable']  = np.where(df['quality']>=6,1,0)
+
+df['aceptable'].value_counts()
+
+df['quality'].unique()
+
+target = 'quality'
+X,y =  df.drop(columns=[target , 'aceptable']) , df['aceptable'] # change target to noral
+
+target
+
+X_train, X_test, y_train, y_test = train_test_split(X,y, test_size=0.2,
+                                                    stratify=y, random_state=123)
+
+X_train, X_test= scaler(X_train, X_test, X.columns)
+
+robot = KNeighborsClassifier(n_neighbors=10)
+
+robot.fit(X_train, y_train)
+
+preds  = robot.predict(X_test)
+
+print(classification_report(y_test, preds))
+
+def knn(X_train, y_train):
+    model = KNeighborsClassifier()
+    n_neighbors=[3,4,5,6,7,8,9, 10, 13, 21, 23, 24, 25, 30]
+    weights=['uniform', 'distance']
+    penalty = ['l2','l1']
+    grid = dict(n_neighbors=n_neighbors, weights=weights)
+    cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=1)
+    grid_search = GridSearchCV(estimator=model, param_grid=grid, n_jobs=-1, cv=cv,
+                           scoring='f1',error_score='raise')
+    grid_result = grid_search.fit(X_train, y_train)
+    return  grid_result.best_estimator_
+
+model_knn = knn(X_train, y_train)
+
+y_pred = model_knn.predict(X_test)
+
+print(classification_report(y_test, y_pred))
+
+model_knn
